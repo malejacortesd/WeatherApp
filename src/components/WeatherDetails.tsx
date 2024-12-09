@@ -1,5 +1,4 @@
 import React from "react";
-import { LuEye } from "react-icons/lu";
 import { FaRegEye } from "react-icons/fa6";
 import { WiHumidity } from "react-icons/wi";
 
@@ -19,12 +18,12 @@ export default function WeatherDetails(props: WeatherDetailProps) {
         <>
             <SingleWeatherDetail
                 icon={<FaRegEye />}
-                information="Sea_level"
+                information="m.s.n.m"
                 value={sea_level}
             />
             <SingleWeatherDetail
                 icon={<WiHumidity />}
-                information="Humidity"
+                information="Humedad"
                 value={humidity}
             />
         </>

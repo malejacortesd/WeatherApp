@@ -5,11 +5,12 @@ import { useQuery } from "react-query";
 import axios, { AxiosError } from "axios";
 import { format, parseISO } from "date-fns";
 import Container from "@/components/Container";
-import { convertKelvinToCelsius } from "@/utils/kelvinToCelsius";
+import { convertKelvinToCelsius } from "@/utils/KelvinToCelsius";
 import WeatherIcon from "@/components/WeatherIcon";
 import { getDayAndNightIcon } from "@/utils/getDayAndNightIcon";
 import WeatherDetails from "@/components/WeatherDetails";
-
+import { placeAtom } from "./atom";
+import { useAtom } from "jotai";
 
 // Tipo para la respuesta de error
 interface APIErrorResponse {
@@ -74,44 +75,74 @@ type SysInfo = {
   pod: string;
 };
 
-export default function Home() {
-  console.log('API Key:', process.env.NEXT_PUBLIC_WEATHER_KEY); // Verifica la clave
+// Función para obtener datos del clima
+async function fetchWeatherData(place: string): Promise<WeatherResponse> {
+  if (!place) throw new Error("Debes seleccionar un lugar");
+  const response = await axios.get(`https://api.openweathermap.org/data/2.5/forecast`, {
+    params: {
+      q: place,
+      appid: process.env.NEXT_PUBLIC_WEATHER_KEY,
+      units: "metric", // Temperatura en Celsius
+      lang: "es", // Descripciones en español
+    },
+  });
+  return response.data;
+}
 
+export default function Home() {
+  const [place, setPlace] = useAtom(placeAtom); // Lugar seleccionado
+  console.log('API Key:', process.env.NEXT_PUBLIC_WEATHER_KEY);
+
+  // Consulta de datos del clima con React Query
   const { isLoading, error, data } = useQuery<WeatherResponse, AxiosError<APIErrorResponse>>(
-    'repoData',
-    async () => {
-      const response = await axios.get(
-        `https://api.openweathermap.org/data/2.5/forecast`,
-        {
-          params: {
-            q: 'medellin',
-            appid: process.env.NEXT_PUBLIC_WEATHER_KEY,
-          },
-        }
-      );
-      return response.data;
+    ["repoData", place], // Clave de consulta
+    () => fetchWeatherData(place), // Función para obtener los datos
+    {
+      enabled: !!place, // Solo ejecutar si hay un lugar seleccionado
+      staleTime: 5 * 60 * 1000, // 5 minutos antes de marcar datos como obsoletos
+      cacheTime: 10 * 60 * 1000, // Mantener datos en caché por 10 minutos
+      retry: 2, // Reintentar en caso de error hasta 2 veces
     }
   );
-  console.log("data", data)
+
+  // Loader mientras se cargan los datos
   if (isLoading) {
     return (
       <div className="flex items-center min-h-screen justify-center">
-        <p className="animate-bounce">Loading...</p>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
+  // Manejo de errores
   if (error) {
     console.error('Error:', error.response?.data || error.message);
+    const errorMessage =
+      error.response?.data?.message === "city not found"
+        ? "No se encontró la ciudad. Intenta nuevamente."
+        : error.response?.data?.message || error.message;
+
     return (
       <div className="flex items-center min-h-screen justify-center">
         <p className="text-red-500">
-          Error: {error.response?.data?.message || error.message}
+          Error: {errorMessage}
         </p>
       </div>
     );
   }
-  const firstData = data?.list[0];
+
+  const firstData = data?.list[0] ?? null;
+
+  // Si no hay datos disponibles
+  if (!firstData) {
+    return (
+      <div className="flex items-center min-h-screen justify-center">
+        <p>No se encontraron datos para la ciudad seleccionada.</p>
+      </div>
+    );
+  }
+
+  // Renderizado principal
   return (
     <div className="flex flex-col gap-4 bg-gray-100 min-h-screen">
       <Navbar />
@@ -119,54 +150,48 @@ export default function Home() {
         <section className="space-y-4">
           <div className="space-y-2">
             <h2 className="flex gap-1 text-2xl items-end">
-              <p> {firstData ? format(parseISO(firstData.dt_txt ?? ''), "EEEE") : "No data available"}</p>
-              <p className="text-lg"> {firstData ? format(parseISO(firstData.dt_txt ?? ''), "dd.MM.yyyy") : "No data available"}</p>
+              <p>{format(parseISO(firstData.dt_txt), "EEEE")}</p>
+              <p className="text-lg">{format(parseISO(firstData.dt_txt), "dd.MM.yyyy")}</p>
             </h2>
 
             <Container className="gap-10 px-6 items-center">
               <div className="flex flex-col px-4">
                 <span className="text-5xl">
-                  {convertKelvinToCelsius(firstData?.main.temp ?? 300.72)}°
+                  {firstData.main.temp}°C
                 </span>
-                <p className="text-xs space-x-1 whitespace-nowrap"></p>
                 <p className="text-xs space-x-2">
-                  <span>
-                    {convertKelvinToCelsius(firstData?.main.temp_min ?? 0)}°↓
-                  </span>
-                  <span>
-                    {convertKelvinToCelsius(firstData?.main.temp_max ?? 0)}°↑
-                  </span>
+                  <span>{firstData.main.temp_min}°↓</span>
+                  <span>{firstData.main.temp_max}°↑</span>
                 </p>
               </div>
-
-              {/* Time and weather icon */}
               <div className="flex gap-10 sm:gap-16 overflow-x-auto w-full justify-between pr-3">
                 {data?.list.map((d, i) => (
-                  <div key={i} className="flex flex-col justify-between gap-2 items-center text-xs font-semibold">
-                    <p className="whitespace-nowrap">{format(parseISO(d.dt_txt), "h:mm a")}</p>
+                  <div
+                    key={i}
+                    className="flex flex-col justify-between gap-2 items-center text-xs font-semibold"
+                  >
+                    <p>{format(parseISO(d.dt_txt), "h:mm a")}</p>
                     <WeatherIcon iconName={getDayAndNightIcon(d.weather[0].icon, d.dt_txt)} />
-                    <p>{convertKelvinToCelsius(d?.main.temp ?? 0)}°</p>
+                    <p>{Math.round(d.main.temp)}°</p>
                   </div>
                 ))}
               </div>
+
             </Container>
 
-            {/* Two containers with the same width */}
             <div className="flex gap-4 w-full">
-              {/* Left container */}
               <Container className="flex-1 justify-center flex-col px-4 items-center">
-                <p className="capitalize text-center">{firstData?.weather[0].description}</p>
-                <WeatherIcon iconName={getDayAndNightIcon(firstData?.weather[0].icon ?? "", firstData?.dt_txt ?? "")} />
+                <p className="capitalize text-center">{firstData.weather[0].description}</p>
+                <WeatherIcon iconName={getDayAndNightIcon(firstData.weather[0].icon, firstData.dt_txt)} />
               </Container>
 
-              {/* Right container */}
               <Container className="bg-blue-200/90 px-10 gap-6 justify-center items-center flex-1">
                 <WeatherDetails
-                  humidity={`${firstData?.main.humidity}`}
-                  sea_level={`${firstData?.main.sea_level}`}
+                  humidity={`${firstData.main.humidity}`}
+                  sea_level={`${firstData.main.sea_level}`}
                 />
               </Container>
-            </div>  
+            </div>
           </div>
         </section>
       </main>
