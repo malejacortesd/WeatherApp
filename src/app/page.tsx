@@ -7,6 +7,8 @@ import { format, parseISO } from "date-fns";
 import Container from "@/components/Container";
 import { convertKelvinToCelsius } from "@/utils/kelvinToCelsius";
 import WeatherIcon from "@/components/WeatherIcon";
+import { getDayAndNightIcon } from "@/utils/getDayAndNightIcon";
+import WeatherDetails from "@/components/WeatherDetails";
 
 
 // Tipo para la respuesta de error
@@ -117,39 +119,57 @@ export default function Home() {
         <section className="space-y-4">
           <div className="space-y-2">
             <h2 className="flex gap-1 text-2xl items-end">
-              <p> {firstData? format(parseISO(firstData.dt_txt ?? ''), "EEEE"): "No data available"}</p>
-              <p className="text-lg"> {firstData? format(parseISO(firstData.dt_txt ?? ''), "dd.MM.yyyy"): "No data available"}</p>
+              <p> {firstData ? format(parseISO(firstData.dt_txt ?? ''), "EEEE") : "No data available"}</p>
+              <p className="text-lg"> {firstData ? format(parseISO(firstData.dt_txt ?? ''), "dd.MM.yyyy") : "No data available"}</p>
             </h2>
+
             <Container className="gap-10 px-6 items-center">
               <div className="flex flex-col px-4">
-              <span className="text-5xl">
-              {convertKelvinToCelsius(firstData?.main.temp ?? 300.72)}°
-              </span>              
-              <p className="text-xs space-x-1 whitespace-nowrap"></p>
-              <p className="text-xs space-x-2">
-                <span>
-                  {convertKelvinToCelsius(firstData?.main.temp_min ?? 0)}°↓
+                <span className="text-5xl">
+                  {convertKelvinToCelsius(firstData?.main.temp ?? 300.72)}°
                 </span>
-                <span>
-                {convertKelvinToCelsius(firstData?.main.temp_max ?? 0)}°↑
-                </span>             
-              </p>
+                <p className="text-xs space-x-1 whitespace-nowrap"></p>
+                <p className="text-xs space-x-2">
+                  <span>
+                    {convertKelvinToCelsius(firstData?.main.temp_min ?? 0)}°↓
+                  </span>
+                  <span>
+                    {convertKelvinToCelsius(firstData?.main.temp_max ?? 0)}°↑
+                  </span>
+                </p>
               </div>
+
               {/* Time and weather icon */}
               <div className="flex gap-10 sm:gap-16 overflow-x-auto w-full justify-between pr-3">
-                {data?.list.map((d, i)=>
-              <div key={i} className="flex flex-col justify-between gap-2 items-center text-xs font-semibold">
-                <p className="whitespace-nowrap">{format(parseISO(d.dt_txt), "h:mm a")}</p>
-                <WeatherIcon iconName={d.weather[0].icon} />
-                <p>{convertKelvinToCelsius(d?.main.temp ?? 0)}°</p>
-              </div>                
-                )}
+                {data?.list.map((d, i) => (
+                  <div key={i} className="flex flex-col justify-between gap-2 items-center text-xs font-semibold">
+                    <p className="whitespace-nowrap">{format(parseISO(d.dt_txt), "h:mm a")}</p>
+                    <WeatherIcon iconName={getDayAndNightIcon(d.weather[0].icon, d.dt_txt)} />
+                    <p>{convertKelvinToCelsius(d?.main.temp ?? 0)}°</p>
+                  </div>
+                ))}
               </div>
             </Container>
+
+            {/* Two containers with the same width */}
+            <div className="flex gap-4 w-full">
+              {/* Left container */}
+              <Container className="flex-1 justify-center flex-col px-4 items-center">
+                <p className="capitalize text-center">{firstData?.weather[0].description}</p>
+                <WeatherIcon iconName={getDayAndNightIcon(firstData?.weather[0].icon ?? "", firstData?.dt_txt ?? "")} />
+              </Container>
+
+              {/* Right container */}
+              <Container className="bg-blue-200/90 px-10 gap-6 justify-center items-center flex-1">
+                <WeatherDetails
+                  humidity={`${firstData?.main.humidity}`}
+                  sea_level={`${firstData?.main.sea_level}`}
+                />
+              </Container>
+            </div>  
           </div>
         </section>
       </main>
-      <section></section>
     </div>
   );
 }
